@@ -1,0 +1,87 @@
+#! /bin/bash
+
+if [ $# == 1 ]
+then
+  echo "Generate Reports for : $1"
+else
+  echo "Parameter need to be passed to the script : $0 <OU> "
+  exit 1
+fi
+
+OU=$1
+
+source /opt/pwrcard/.pcard_profile
+
+
+CreditQry_Output=`sqlplus -S zz4m4t/start123@pcard <<EOF
+set head off;
+SET PAGESIZE 40000;
+@ID240_xxx_CreditQry_04DEC17.sql;
+/
+exit
+EOF`
+
+DebitQry_Output=`sqlplus -S zz4m4t/start123@pcard <<EOF
+set head off;
+SET PAGESIZE 40000;
+@ID240_xxx_DebitQry_04DEC17.sql;
+/
+exit
+EOF`
+
+#echo "Query output is : $Sql_OutPut"
+
+Debit_fun() {
+echo "Inside Function : $1"
+cd /opt/pwrcard/rtsp/shell/in_scripts/Myreports-ID240/
+sed -i -e 's|'"${2}"'|'"${1}"'|g' ID240_xxx_Debit.xml
+echo "##################"
+cat ID240_xxx_Debit.xml
+echo "\n##################"
+cp /opt/pwrcard/rtsp/shell/in_scripts/Myreports-ID240/ID240_xxx_Debit.xml /data/jasperreports-server-cp-6.1.0-bin/camel/inbound/myreportsProcessPci/ 
+sleep 5
+echo "File copied for : $1"
+echo "After edit reverting the cange inside the file"
+sed -i -e 's|'"${1}"'|'"${2}"'|g' ID240_xxx_Debit.xml
+}
+
+Credit_fun() {
+echo "Inside Function : $1"
+cd /opt/pwrcard/rtsp/shell/in_scripts/Myreports-ID240/
+sed -i -e 's|'"${2}"'|'"${1}"'|g' ID240_xxx_Credit.xml
+echo "##################"
+cat ID240_xxx_Credit.xml
+echo "\n##################"
+cp /opt/pwrcard/rtsp/shell/in_scripts/Myreports-ID240/ID240_xxx_Credit.xml /data/jasperreports-server-cp-6.1.0-bin/camel/inbound/myreportsProcessPci/
+sleep 5
+echo "File copied for : $1"
+echo "After edit reverting the cange inside the file"
+sed -i -e 's|'"${1}"'|'"${2}"'|g' ID240_xxx_Credit.xml
+}
+
+echo "Printing inside while loop"
+while read -r line
+do
+	merchant_id=`echo -e "${line[0]}"`
+	count=`echo -n $merchant_id | wc -c`
+	if [ "$merchant_id" != null ] && [ $count == 38	 ]
+	then
+	    fun $OU$merchant_id SERIAL_NO
+    else
+	    echo "Merchant id is incorrect : $merchant_id"
+    fi
+done <<< "$CreditQry_Output"
+
+
+echo "Printing inside while loop"
+while read -r line
+do
+	merchant_id=`echo -e "${line[0]}"`
+	count=`echo -n $merchant_id | wc -c`
+	if [ "$merchant_id" != null ] && [ $count == 38	 ]
+	then
+	    fun $OU$merchant_id SERIAL_NO
+    else
+	    echo "Merchant id is incorrect : $merchant_id"
+    fi
+done <<< "$DebitQry_Output"
